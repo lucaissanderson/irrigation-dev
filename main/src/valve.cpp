@@ -8,7 +8,6 @@
 
 #include "valve.h"
 
-
 valve::valve() {
 
     /* public members */
@@ -17,12 +16,12 @@ valve::valve() {
 
 
     /* private members */
-    GPIO_PORT = static_cast<gpio_num_t>(0); // default 0. expected to be changed via methods
+    GPIO_PORT = static_cast<gpio_num_t>(0); // default 0. expected to be changed via setGPIO method
 
     /* private methods */
 
 }
 
 void valve::setGPIO(uint8_t num) {
-    GPIO_PORT = static_cast<gpio_num_t>(num); // default 0. expected to be changed via methods
+    GPIO_PORT = static_cast<gpio_num_t>(num);
 }

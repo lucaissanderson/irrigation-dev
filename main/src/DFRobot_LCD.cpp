@@ -4,6 +4,7 @@
 #include "driver/i2c.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "esp_err.h"
 #include "DFRobot_LCD.h"
 
 // Configuration for I2C
@@ -14,11 +15,11 @@
 #define I2C_MASTER_TX_BUF_DISABLE 0
 #define I2C_MASTER_RX_BUF_DISABLE 0
 
-/*******************************public*********************************/
-
 // Function prototypes for internal functions
 static esp_err_t i2c_master_init();
 void i2c_send(uint8_t addr, uint8_t *data, size_t len);
+
+/*******************************public*********************************/
 
 DFRobot_LCD::DFRobot_LCD(uint8_t lcd_cols, uint8_t lcd_rows, uint8_t lcd_Addr, uint8_t RGB_Addr) {
     _lcdAddr = lcd_Addr;
@@ -30,10 +31,15 @@ DFRobot_LCD::DFRobot_LCD(uint8_t lcd_cols, uint8_t lcd_rows, uint8_t lcd_Addr, u
 /**
  * initialize the display
  */
-void DFRobot_LCD::init() {
-    i2c_master_init(); // Initialize I2C at constructor
+esp_err_t DFRobot_LCD::init() {
+    esp_err_t ret;
+    ret = i2c_master_init(); // Initialize I2C at constructor
+    if(ret != ESP_OK) {
+        return ret;
+    }
     _showfunction = LCD_4BITMODE | LCD_1LINE | LCD_5x8DOTS;
     begin(_cols, _rows);
+    return ESP_OK;
 }
 
 /**

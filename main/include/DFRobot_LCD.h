@@ -16,6 +16,7 @@
 #define __DFRobot_LCD_H__
 
 #include <inttypes.h>
+#include "esp_err.h"
 
 /*!
  *  @brief Device I2C Arress
@@ -103,7 +104,7 @@ public:
   /*!
    *  @brief initialize
    */ 
-  void init();
+  esp_err_t init();
   
   void clear();
   void home();

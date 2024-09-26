@@ -12,7 +12,7 @@ public:
 
     /* public methods */
     valve();
-    void setGPIO(gpio_num_t num);
+    void setGPIO(uint8_t);
 
 private:
     /* private members */
