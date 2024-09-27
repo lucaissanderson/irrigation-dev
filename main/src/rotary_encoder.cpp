@@ -29,13 +29,14 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 volatile int16_t position = 0;
 volatile int8_t direction = 0;
 bool buttonPressed = false;
+static volatile int8_t prevButtonState;
 
 static volatile int S1_prev;
 
 static void trigger_callback(void* arg)
 {
     uint32_t io_num;
-    int S1_level, S2_level;
+    int S1_level, S2_level, KEY_level;
     for (;;) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)){
             switch (io_num) {
@@ -54,8 +55,12 @@ static void trigger_callback(void* arg)
                     S1_prev = S1_level;
                     break;
                 case KEY_GPIO:
-                    if(!gpio_get_level(static_cast<gpio_num_t>(io_num))) ESP_LOGI(TAG, "Button press!");
-                    buttonPressed = true;
+                    KEY_level = gpio_get_level(static_cast<gpio_num_t>(KEY_GPIO));
+                    if(prevButtonState < KEY_level) {
+                        ESP_LOGI(TAG, "Button pressed");
+                        buttonPressed = true;
+                    }
+                    prevButtonState = KEY_level;
                     break;
                 default:
                     ESP_LOGI(TAG, "Invalid GPIO dequeued");
@@ -119,6 +124,8 @@ esp_err_t rotary_init() {
         ESP_LOGE(TAG, "Failed to add KEY to ISR handler: %s", esp_err_to_name(ret));
         return ret;
     }
+
+    prevButtonState = gpio_get_level(static_cast<gpio_num_t>(KEY_GPIO));
 
     return ESP_OK;
 }

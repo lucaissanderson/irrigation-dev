@@ -52,7 +52,6 @@ enum Direction {
 };
 
 static volatile MenuState currentMenu = HOME; // starting state
-static MenuState prevMenu = currentMenu;
 static MenuState nextMenu = VALVE_SELECT;
 static uint16_t prev_position = 0;
 
@@ -83,6 +82,7 @@ void displayMenu(MenuState menuState) {
                     break;
                default:
                     snprintf(bot_row, sizeof(bot_row), "<   INVALID    >");
+                    ESP_LOGE(TAG, "Invalid state");
                     break;
             }
             lcd.printstr(bot_row);
@@ -97,6 +97,76 @@ void displayMenu(MenuState menuState) {
             break;
         default:
             ESP_LOGE(TAG, "Invalid state");
+            break;
+    }
+}
+
+void processSelection() {
+    switch (currentMenu) {
+        case HOME:
+            currentMenu = nextMenu;
+            switch (nextMenu) {
+                case VALVE_SELECT:
+                    nextMenu = HOME;
+                    break;
+                case SETTINGS:
+                    nextMenu = HOME;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case VALVE_SELECT:
+            currentMenu = nextMenu;
+            switch (nextMenu) {
+                case HOME:
+                    nextMenu = VALVE_SELECT;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        case SETTINGS:
+            currentMenu = nextMenu;
+            switch (nextMenu) {
+                case HOME:
+                    nextMenu = VALVE_SELECT;
+                    break;
+                default:
+                    break;
+            }
+            break;
+        default:
+            break;
+    }
+    position = 0;
+}
+
+void updateMenuFromEncoder() {
+    switch(currentMenu) {
+        case HOME:
+            if(position < 0 || position > 1) {// only 2 options in HOME screen
+                position = prev_position; 
+                break; 
+            }
+            switch(direction) {
+                case CW:
+                    if(nextMenu != SETTINGS) nextMenu = SETTINGS;
+                    break;
+                case CCW:
+                    if(nextMenu != VALVE_SELECT) nextMenu = VALVE_SELECT;
+                    break;
+            }
+            break;
+        case SETTINGS:
+            position = 0; // only one option for now... back
+            nextMenu = HOME;
+            break;
+        case VALVE_SELECT:
+            position = 0; // only one option for now... back
+            nextMenu = HOME;
+            break;
+        default:
             break;
     }
 }
@@ -110,84 +180,7 @@ static void refresh_disp_task(void* arg) {
 
 }
 
-void processSelection() {
-    prevMenu = currentMenu;
-    switch (currentMenu) {
-        case HOME:
-            currentMenu = nextMenu;
-            break;
-        case VALVE_SELECT:
-            currentMenu = nextMenu;
-            break;
-       case SETTINGS:
-            currentMenu = nextMenu;
-            break;
-        default:
-            ESP_LOGE(TAG, "Invalid state");
-            break;
-    }
-}
-
-void updateMenuFromEncoder() {
-    switch(currentMenu) {
-        case HOME:
-            if(position < 0 || position > 1) {// only 2 options in HOME screen
-                position = prev_position; 
-                break; 
-            }
-            switch(direction) {
-                case CW:
-                    if(nextMenu != SETTINGS) nextMenu = SETTINGS;
-                    ESP_LOGI(TAG, "next state: settings");
-                    break;
-                case CCW:
-                    if(nextMenu != VALVE_SELECT) nextMenu = VALVE_SELECT;
-                    ESP_LOGI(TAG, "next state: valve sel");
-                    break;
-            }
-            break;
-        case SETTINGS:
-            position = 0; // only one option for now... back
-            nextMenu = prevMenu;
-            ESP_LOGI(TAG, "next state: home");
-            break;
-        case VALVE_SELECT:
-            position = 0; // only one option for now... back
-            nextMenu = prevMenu;
-            ESP_LOGI(TAG, "next state: home");
-            break;
-        default:
-            break;
-    }
-}
-
-extern "C" void app_main(void)
-{
-
-    esp_err_t ret;
-
-    /* initialize display */
-    ret = lcd.init();
-    if(ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed LCD init: %s", esp_err_to_name(ret));
-        return;
-    }
-    lcd.clear();
-
-    /* initialize rotary encoder */
-    ret = rotary_init();
-    if(ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize rotary components: %s", esp_err_to_name(ret));
-        return;
-    }
-
-    /* initialize external RTC 
-    DS3231_RTC rtc;
-    rtc.init();
-    */
-    
-    xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
-
+static void main_task(void* arg) {
     while(true) {
 
         // if button pressed, process the selection
@@ -204,5 +197,37 @@ extern "C" void app_main(void)
         // simulate non-blocking loop, update display or do other tasks
         vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+}
+
+
+
+extern "C" void app_main(void)
+{
+    esp_err_t ret;
+
+    /* initialize display */
+    ret = lcd.init();
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed LCD init: %s", esp_err_to_name(ret));
+        return;
+    }
+    lcd.clear();
+    lcd.customSymbol(0, wifiSymbol);
+    lcd.customSymbol(1, noWifiSymbol);
+
+    /* initialize rotary encoder */
+    ret = rotary_init();
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize rotary components: %s", esp_err_to_name(ret));
+        return;
+    }
+
+    /* initialize external RTC 
+    DS3231_RTC rtc;
+    rtc.init();
+    */
+    
+    xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
+    xTaskCreate(main_task, "refresh_disp_task", 2048, NULL, 8, NULL);
 
 }
