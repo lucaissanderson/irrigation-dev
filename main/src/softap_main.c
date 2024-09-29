@@ -117,24 +117,3 @@ esp_err_t wifi_init_softap(void)
     return ESP_OK;
 }
 
-/*
-void app_main(void)
-{
-    //Initialize NVS
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-      ESP_ERROR_CHECK(nvs_flash_erase());
-      ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
-    ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
-    wifi_init_softap();
-
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    ESP_ERROR_CHECK(esp_wifi_stop());
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-}
-*/
