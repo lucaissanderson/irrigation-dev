@@ -9,12 +9,14 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_wifi.h"
+#include "esp_netif_sntp.h"
 
 #include "DFRobot_LCD.h"
 #include "DS3231_RTC.h"
 #include "rotary_encoder.h"
 #include "valve.h"
-#include "softap_main.h"
+#include "wifi_setup.h"
+#include "sntp_setup.h"
 
 static const char *TAG = "IRRIGATION_TOP";
 
@@ -229,27 +231,11 @@ extern "C" void app_main(void)
     }
 
     struct tm timeinfo;
-    // set time manually
-    timeinfo.tm_sec = 0;
-    timeinfo.tm_min = 0;
-    timeinfo.tm_hour = 12;
-    timeinfo.tm_mday = 28;
-    timeinfo.tm_mon = 8; // 0=Jan, Sept=8
-    timeinfo.tm_year = 2024 - 1900; // years since 1900
-    timeinfo.tm_wday = 0; // sun = 0
+    time_t now;
 
-    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min, \
-                                                        timeinfo.tm_sec, timeinfo.tm_mday, \
-                                                        timeinfo.tm_mon + 1, timeinfo.tm_year + 1900, \
-                                                        timeinfo.tm_wday + 1);
-
-
-    /**
-     * check external RTC... if it's up-to-date (current year), use those values
-     * otherwise, try reaching the internet and resyncing system and RTC
-     */
-    rtc.setTime(&timeinfo);
-    rtc.getTime(&timeinfo);
+    /* set locale */
+    setenv("TZ", "PST8PDT,M3.2.0/2,M11.1.0/2",1);
+    tzset();
 
     /**
      * try wifi connection , then disconnect
@@ -262,9 +248,43 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    ESP_ERROR_CHECK(wifi_init_softap());
-    ESP_ERROR_CHECK(esp_wifi_stop());
-   
+    /* initialize wifi */
+    wifi_init_sta();
+
+    /* sync time */
+    initialize_sntp();
+    if((ret = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000))) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed SNTP init-timeout: %s", esp_err_to_name(ret));
+    }
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min,
+                                                        timeinfo.tm_sec, timeinfo.tm_mday,
+                                                        timeinfo.tm_mon + 1,
+                                                        timeinfo.tm_year + 1900,
+                                                        timeinfo.tm_wday + 1);
+
+    /**
+     * check external RTC... if it's up-to-date (current year), use those values
+     * otherwise, try reaching the internet and resyncing system and RTC
+     */
+    rtc.setTime(&timeinfo);
+
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
+    rtc.getTime(&timeinfo);
+
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
+    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min,
+                                                        timeinfo.tm_sec, timeinfo.tm_mday,
+                                                        timeinfo.tm_mon + 1,
+                                                        timeinfo.tm_year + 1900,
+                                                        timeinfo.tm_wday + 1);
+
+ 
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
     xTaskCreate(main_task, "main_task", 2048, NULL, 8, NULL);
 
