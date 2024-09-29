@@ -83,7 +83,6 @@ void displayMenu(MenuState menuState) {
                     snprintf(bot_row, sizeof(bot_row), "<   SETTINGS    ");
                     break;
                default:
-                    snprintf(bot_row, sizeof(bot_row), "<   INVALID    >");
                     ESP_LOGE(TAG, "Invalid state");
                     break;
             }
