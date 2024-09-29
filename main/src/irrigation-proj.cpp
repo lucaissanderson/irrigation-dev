@@ -8,11 +8,13 @@
 #include "esp_err.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "esp_wifi.h"
 
 #include "DFRobot_LCD.h"
 #include "DS3231_RTC.h"
 #include "rotary_encoder.h"
 #include "valve.h"
+#include "softap_main.h"
 
 static const char *TAG = "IRRIGATION_TOP";
 
@@ -83,7 +85,6 @@ void displayMenu(MenuState menuState) {
                     snprintf(bot_row, sizeof(bot_row), "<   SETTINGS    ");
                     break;
                default:
-                    snprintf(bot_row, sizeof(bot_row), "<   INVALID    >");
                     ESP_LOGE(TAG, "Invalid state");
                     break;
             }
@@ -248,18 +249,21 @@ extern "C" void app_main(void)
      * otherwise, try reaching the internet and resyncing system and RTC
      */
     rtc.setTime(&timeinfo);
+    rtc.getTime(&timeinfo);
 
-    for(int i = 0; i < 3; i++) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        timeinfo = {0};
-        rtc.getTime(&timeinfo);
-        ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min, \
-                                                            timeinfo.tm_sec, timeinfo.tm_mday, \
-                                                            timeinfo.tm_mon + 1, timeinfo.tm_year + 1900, \
-                                                            timeinfo.tm_wday + 1);
+    /**
+     * try wifi connection , then disconnect
+     */
+    //Initialize NVS
+    ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+      ESP_ERROR_CHECK(nvs_flash_erase());
+      ret = nvs_flash_init();
     }
+    ESP_ERROR_CHECK(ret);
 
-
+    ESP_ERROR_CHECK(wifi_init_softap());
+    ESP_ERROR_CHECK(esp_wifi_stop());
    
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
     xTaskCreate(main_task, "main_task", 2048, NULL, 8, NULL);

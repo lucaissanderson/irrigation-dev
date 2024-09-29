@@ -462,6 +462,15 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# WiFi Config Quick Change
+#
+CONFIG_ESP_WIFI_SSID="LucaisStudio 2.4G"
+CONFIG_ESP_WIFI_PASSWORD="sashaluna22"
+CONFIG_ESP_WIFI_CHANNEL=1
+CONFIG_ESP_MAX_STA_CONN=4
+# end of WiFi Config Quick Change
+
+#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
