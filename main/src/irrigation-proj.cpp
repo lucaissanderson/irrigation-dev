@@ -6,6 +6,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_err.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 
 #include "DFRobot_LCD.h"
 #include "DS3231_RTC.h"
@@ -200,11 +202,13 @@ static void main_task(void* arg) {
 }
 
 
-
 extern "C" void app_main(void)
 {
     esp_err_t ret;
 
+    /* initialize external RTC */
+    DS3231_RTC rtc;
+ 
     /* initialize display */
     ret = lcd.init();
     if(ret != ESP_OK) {
@@ -212,6 +216,7 @@ extern "C" void app_main(void)
         return;
     }
     lcd.clear();
+    /* create custom characters in LCD CGRAM */
     lcd.customSymbol(0, wifiSymbol);
     lcd.customSymbol(1, noWifiSymbol);
 
@@ -222,12 +227,41 @@ extern "C" void app_main(void)
         return;
     }
 
-    /* initialize external RTC 
-    DS3231_RTC rtc;
-    rtc.init();
-    */
-    
+    struct tm timeinfo;
+    // set time manually
+    timeinfo.tm_sec = 0;
+    timeinfo.tm_min = 0;
+    timeinfo.tm_hour = 12;
+    timeinfo.tm_mday = 28;
+    timeinfo.tm_mon = 8; // 0=Jan, Sept=8
+    timeinfo.tm_year = 2024 - 1900; // years since 1900
+    timeinfo.tm_wday = 0; // sun = 0
+
+    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min, \
+                                                        timeinfo.tm_sec, timeinfo.tm_mday, \
+                                                        timeinfo.tm_mon + 1, timeinfo.tm_year + 1900, \
+                                                        timeinfo.tm_wday + 1);
+
+
+    /**
+     * check external RTC... if it's up-to-date (current year), use those values
+     * otherwise, try reaching the internet and resyncing system and RTC
+     */
+    rtc.setTime(&timeinfo);
+
+    for(int i = 0; i < 3; i++) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        timeinfo = {0};
+        rtc.getTime(&timeinfo);
+        ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min, \
+                                                            timeinfo.tm_sec, timeinfo.tm_mday, \
+                                                            timeinfo.tm_mon + 1, timeinfo.tm_year + 1900, \
+                                                            timeinfo.tm_wday + 1);
+    }
+
+
+   
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
-    xTaskCreate(main_task, "refresh_disp_task", 2048, NULL, 8, NULL);
+    xTaskCreate(main_task, "main_task", 2048, NULL, 8, NULL);
 
 }

@@ -2,6 +2,7 @@
 #include <time.h>
 #include "driver/i2c.h"
 #include "esp_log.h"
+#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -15,6 +16,38 @@
 #define I2C_MASTER_TX_BUF_DISABLE 0
 #define I2C_MASTER_RX_BUF_DISABLE 0
 
+static const char* TAG = "DS3231";
+
+/**
+ * bcd to decimal helper
+ */
+static uint8_t bcd_to_dec(uint8_t bcd) {
+    uint8_t decimal = 0;
+    uint8_t base = 1;
+
+    while (bcd > 0) {
+        // extract the last bcd digit (4 bits)
+        uint8_t last_digit = bcd & 0xF;
+
+        // add the bcd digit's value to the decimal result
+        decimal += last_digit * base;
+
+        // shift to the next bcd digit (next 4 bits)
+        bcd >>= 4;
+
+        // increase the base (multiply by 10)
+        base *= 10;
+    }
+    return decimal;
+}
+
+/*
+ * Function to convert decimal to BCD helper
+ */
+static uint8_t dec_to_bcd(uint8_t dec) {
+    return ((dec / 10 * 16) + (dec % 10));
+}
+
 /*******************************public*********************************/
 
 DS3231_RTC::DS3231_RTC() {
@@ -26,20 +59,6 @@ DS3231_RTC::DS3231_RTC() {
     uint8_t month = 0;
     uint8_t year = 0;
     uint8_t weekday = 0;
-
-    // alarm 1 data struct
-
-    // alarm 2 data struct
-
-    // alarm settings
-    bool alarm1_enabled = false;
-    bool alarm2_enabled = false;
-    uint8_t alarm1_minutes = 0;
-    uint8_t alarm1_hours = 0;
-    uint8_t alarm1_day = 0;
-    uint8_t alarm2_minutes = 0;
-    uint8_t alarm2_hours = 0;
-    uint8_t alarm2_day = 0;
 
     // temperature reading
     float temperature = 0.0;
@@ -53,8 +72,14 @@ DS3231_RTC::DS3231_RTC() {
 /*
  * Initialize the i2c connection in the constructor
  */
-void DS3231_RTC::init(){
-    ESP_ERROR_CHECK(i2c_master_init());
+esp_err_t DS3231_RTC::init(){
+    esp_err_t ret;
+    ret = i2c_master_init();
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed RTC init: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    return ESP_OK;
 }
 
 /*
@@ -66,51 +91,49 @@ void DS3231_RTC::init(){
  * 	design considerations:
  * 	    consolidate time members into a struct?
  */
-void DS3231_RTC::setTime() {
-    uint8_t buf[8] = {
-                     seconds,
-                     minutes,
-                     hours,
-                     day,
-                     weekday,
-                     day,
-                     month,
-                     year
-                     };
+esp_err_t DS3231_RTC::setTime(struct tm *timeinfo) {
+    uint8_t buf[7] = {
+                    dec_to_bcd(timeinfo->tm_sec),
+                    dec_to_bcd(timeinfo->tm_min),
+                    dec_to_bcd(timeinfo->tm_hour),
+                    dec_to_bcd(timeinfo->tm_wday),
+                    dec_to_bcd(timeinfo->tm_mday),
+                    dec_to_bcd(timeinfo->tm_mon),
+                    dec_to_bcd(timeinfo->tm_year),
+                    };
 
-    ESP_ERROR_CHECK(i2c_send(0x0,buf,sizeof(buf)));
+    esp_err_t ret;
+    ret = i2c_send(0x0,buf,sizeof(buf));
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to write time to DS3231: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    return ESP_OK;
 }
 
 /*
  * get time from the DS3231
  * the resulting memeber values are in BCD
  */
-void DS3231_RTC::getTime() {
-    uint8_t buffer[8];
+esp_err_t DS3231_RTC::getTime(struct tm *timeinfo) {
+    uint8_t buffer[7];
 
-    ESP_ERROR_CHECK(i2c_send_receive(0x0, buffer, sizeof(buffer)));
+    esp_err_t ret;
+    ret = i2c_send_receive(0x0, buffer, sizeof(buffer));
+    if(ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to retreive time from DS3231: %s", esp_err_to_name(ret));
+        return ret;
+    }
 
-    seconds = buffer[0];
-    minutes = buffer[1];
-    hours = buffer[2];
-    day = buffer[3];
-    weekday = buffer[4];
-    day = buffer[5];
-    month = buffer[6];
-    year = buffer[7];
-}
+    timeinfo->tm_sec = bcd_to_dec(buffer[0]);
+    timeinfo->tm_min = bcd_to_dec(buffer[1]);
+    timeinfo->tm_hour = bcd_to_dec(buffer[2]);
+    timeinfo->tm_wday = bcd_to_dec(buffer[3]);
+    timeinfo->tm_mday = bcd_to_dec(buffer[4]);
+    timeinfo->tm_mon = bcd_to_dec(buffer[5]);
+    timeinfo->tm_year = bcd_to_dec(buffer[6]);
 
-/**
- * sets alarm 1
- */
-void DS3231_RTC::setAlarm1(){
-
-}
-
-/**
- * sets alarm 2
- */
-void DS3231_RTC::setAlarm2(){
+    return ESP_OK;
 
 }
 

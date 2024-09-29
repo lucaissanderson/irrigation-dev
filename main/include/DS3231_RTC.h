@@ -2,6 +2,7 @@
 #define __DS3231_RTC_H__
 
 #include <inttypes.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "driver/i2c.h"
 
@@ -19,16 +20,6 @@ public:
     uint8_t year;
     uint8_t weekday;
 
-    // alarm settings
-    bool alarm1_enabled;
-    bool alarm2_enabled;
-    uint8_t alarm1_minutes;
-    uint8_t alarm1_hours;
-    uint8_t alarm1_day;
-    uint8_t alarm2_minutes;
-    uint8_t alarm2_hours;
-    uint8_t alarm2_day;
-
     // temperature reading
     float temperature;
 
@@ -37,11 +28,9 @@ public:
     uint8_t status_register;
 
     // public methods...
-    void init();
-    void setTime();
-    void getTime();
-    void setAlarm1();
-    void setAlarm2();
+    esp_err_t init();
+    esp_err_t setTime(struct tm *timeinfo);
+    esp_err_t getTime(struct tm *timeinfo);
     float readTemperature();
 
 private:
