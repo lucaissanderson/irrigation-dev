@@ -51,22 +51,12 @@ static uint8_t dec_to_bcd(uint8_t dec) {
 /*******************************public*********************************/
 
 DS3231_RTC::DS3231_RTC() {
-    // data and time
-    uint8_t seconds = 0;
-    uint8_t minutes = 0;
-    uint8_t hours = 0;
-    uint8_t day = 0;
-    uint8_t month = 0;
-    uint8_t year = 0;
-    uint8_t weekday = 0;
-
     // temperature reading
     float temperature = 0.0;
 
     // control and status
     uint8_t control_register = 0;
     uint8_t status_register = 0;
-
 }
 
 /*

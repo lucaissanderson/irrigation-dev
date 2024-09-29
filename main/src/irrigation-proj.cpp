@@ -14,7 +14,7 @@
 #include "DFRobot_LCD.h"
 #include "DS3231_RTC.h"
 #include "rotary_encoder.h"
-#include "valve.h"
+#include "Valve.h"
 #include "wifi_setup.h"
 #include "sntp_setup.h"
 
@@ -42,6 +42,17 @@ static uint8_t noWifiSymbol[8] = {
     0b01100, // row 7
     0b10000 // row 8
 };
+
+static uint8_t checkSymbol[8] = {
+    0b00000, // row 1
+    0b00001, // row 2
+    0b00001, // row 3
+    0b00010, // row 4
+    0b10010, // row 5
+    0b01100, // row 6
+    0b00000, // row 7
+    0b00000  // row 8
+};
 /* end symbols */
 
 
@@ -60,19 +71,29 @@ enum Direction {
 static volatile MenuState currentMenu = HOME; // starting state
 static MenuState nextMenu = VALVE_SELECT;
 static uint16_t prev_position = 0;
+static bool wifi_connected = false;
 
 DFRobot_LCD lcd(16,2);
 
-void displayMenu(MenuState menuState) {
+static void displayMenu(MenuState menuState) {
     char top_row[17];
     char bot_row[17];
 
+    time_t now;
+    struct tm timeinfo;
+    time(&now);
+    localtime_r(&now, &timeinfo);
+
     lcd.clear();
     lcd.setCursor(0,0); // col, row
-    snprintf(top_row, sizeof(top_row), "V1:0 V2:0");
+    snprintf(top_row, sizeof(top_row), "V1: V2:  %2d:%2d", timeinfo.tm_hour, timeinfo.tm_min);
     lcd.printstr(top_row);
     lcd.setCursor(15,0);
     lcd.write(0); // print status wifi - functionality later
+    lcd.setCursor(3,0);
+    lcd.write(2);
+    lcd.setCursor(7,0);
+    lcd.write(2);
 
     lcd.setCursor(0,1);
     /* determine current state */
@@ -106,7 +127,7 @@ void displayMenu(MenuState menuState) {
     }
 }
 
-void processSelection() {
+static void processSelection() {
     switch (currentMenu) {
         case HOME:
             currentMenu = nextMenu;
@@ -208,6 +229,8 @@ static void main_task(void* arg) {
 extern "C" void app_main(void)
 {
     esp_err_t ret;
+    struct tm timeinfo;
+    time_t now;
 
     /* initialize external RTC */
     DS3231_RTC rtc;
@@ -222,16 +245,17 @@ extern "C" void app_main(void)
     /* create custom characters in LCD CGRAM */
     lcd.customSymbol(0, wifiSymbol);
     lcd.customSymbol(1, noWifiSymbol);
+    lcd.customSymbol(2, checkSymbol);
 
     /* initialize rotary encoder */
     ret = rotary_init();
     if(ret != ESP_OK) {
+        char str_buf[17];
+        snprintf(str_buf, sizeof(str_buf), "Rotary failed");
+        lcd.printstr(str_buf);
         ESP_LOGE(TAG, "Failed to initialize rotary components: %s", esp_err_to_name(ret));
         return;
     }
-
-    struct tm timeinfo;
-    time_t now;
 
     /* set locale */
     setenv("TZ", "PST8PDT,M3.2.0/2,M11.1.0/2",1);
@@ -239,7 +263,6 @@ extern "C" void app_main(void)
 
     /**
      * try wifi connection , then disconnect
-     */
     //Initialize NVS
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -248,43 +271,26 @@ extern "C" void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
-    /* initialize wifi */
     wifi_init_sta();
 
-    /* sync time */
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
     initialize_sntp();
     if((ret = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000))) != ESP_OK) {
         ESP_LOGE(TAG, "Failed SNTP init-timeout: %s", esp_err_to_name(ret));
     }
+     */
+
+    rtc.getTime(&timeinfo);
     time(&now);
     localtime_r(&now, &timeinfo);
-
-    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min,
-                                                        timeinfo.tm_sec, timeinfo.tm_mday,
-                                                        timeinfo.tm_mon + 1,
-                                                        timeinfo.tm_year + 1900,
-                                                        timeinfo.tm_wday + 1);
 
     /**
      * check external RTC... if it's up-to-date (current year), use those values
      * otherwise, try reaching the internet and resyncing system and RTC
      */
-    rtc.setTime(&timeinfo);
 
-    vTaskDelay(pdMS_TO_TICKS(5000));
 
-    rtc.getTime(&timeinfo);
-
-    time(&now);
-    localtime_r(&now, &timeinfo);
-
-    ESP_LOGI(TAG, "%d:%d.%d, %d of month %d, %d, DOW=%d", timeinfo.tm_hour, timeinfo.tm_min,
-                                                        timeinfo.tm_sec, timeinfo.tm_mday,
-                                                        timeinfo.tm_mon + 1,
-                                                        timeinfo.tm_year + 1900,
-                                                        timeinfo.tm_wday + 1);
-
- 
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
     xTaskCreate(main_task, "main_task", 2048, NULL, 8, NULL);
 
