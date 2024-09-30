@@ -1,4 +1,3 @@
-
 #ifndef SNTP_H
 #define SNTP_H
 
@@ -8,6 +7,8 @@
 extern "C" {
 #endif
 
+extern bool time_synced;
+
 void initialize_sntp();
 
 #ifdef __cplusplus
@@ -15,4 +16,3 @@ void initialize_sntp();
 #endif
 
 #endif // SNTP_H
-

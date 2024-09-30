@@ -124,15 +124,9 @@ static void time_sync() {
 
     initialize_sntp();
     if((ret = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000))) != ESP_OK) {
-        wifi_connected = false;
-    } else {
-        wifi_connected = true;
-        time(&now);
-        localtime_r(&now, &timeinfo);
-        rtc.setTime(&timeinfo);
-    }
+    }    
 
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    vTaskDelay(pdMS_TO_TICKS(3000));
     displayFlag = SYNC_STATUS;
     vTaskDelay(pdMS_TO_TICKS(5000));
     displayFlag = MENU;
@@ -207,7 +201,7 @@ static void displayMenu(MenuState menuState) {
             lcd.clear();
             lcd.setCursor(0,0);
 
-            if(wifi_connected) {
+            if(time_synced) {
                 snprintf(status_buf, sizeof(status_buf), "Sync successful!");
             } else {
                 snprintf(status_buf, sizeof(status_buf), "Sync failed...");
@@ -395,7 +389,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     /* default valve config. everyday at 8am for 10 mins */
-    Valve v1(8,0,0b01111111,600,0);
+    Valve v1(20,53,0b01111111,600,0);
     Valve v2(8,0,0b01111111,600,1);
 
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
