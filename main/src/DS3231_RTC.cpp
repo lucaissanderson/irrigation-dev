@@ -124,7 +124,6 @@ esp_err_t DS3231_RTC::getTime(struct tm *timeinfo) {
     timeinfo->tm_year = bcd_to_dec(buffer[6]);
 
     return ESP_OK;
-
 }
 
 /**

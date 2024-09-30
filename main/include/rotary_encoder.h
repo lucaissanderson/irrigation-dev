@@ -3,7 +3,7 @@
 
 #include "esp_err.h"
 
-extern bool buttonPressed;
+extern volatile bool buttonPressed;
 extern volatile int16_t position;
 extern volatile int8_t direction; // Counter-Clockwise = 0 , Clockwise = 1
 
