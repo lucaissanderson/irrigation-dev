@@ -28,7 +28,7 @@ static void IRAM_ATTR gpio_isr_handler(void* arg)
 
 volatile int16_t position = 0;
 volatile int8_t direction = 0;
-bool buttonPressed = false;
+volatile bool buttonPressed = false;
 static volatile int8_t prevButtonState;
 
 static volatile int S1_prev;
@@ -56,11 +56,8 @@ static void trigger_callback(void* arg)
                     break;
                 case KEY_GPIO:
                     KEY_level = gpio_get_level(static_cast<gpio_num_t>(KEY_GPIO));
-                    if(prevButtonState < KEY_level) {
-                        ESP_LOGI(TAG, "Button pressed");
-                        buttonPressed = true;
-                    }
-                    prevButtonState = KEY_level;
+                    ESP_LOGI(TAG, "Button pressed");
+                    buttonPressed = true;
                     break;
                 default:
                     ESP_LOGI(TAG, "Invalid GPIO dequeued");
