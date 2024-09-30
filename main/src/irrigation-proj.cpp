@@ -126,10 +126,22 @@ static void time_sync() {
     if((ret = esp_netif_sntp_sync_wait(pdMS_TO_TICKS(10000))) != ESP_OK) {
     }    
 
-    vTaskDelay(pdMS_TO_TICKS(3000));
-    displayFlag = SYNC_STATUS;
     vTaskDelay(pdMS_TO_TICKS(5000));
+    /* update time variables */
+    if(time_synced) {
+        time(&now);
+        gmtime_r(&now, &timeinfo);
+        rtc.setTime(&timeinfo);
+        printf("UTC time: %s", asctime(&timeinfo));
+    }
+    displayFlag = SYNC_STATUS;
+    vTaskDelay(pdMS_TO_TICKS(3000));
     displayFlag = MENU;
+
+    /* free resources from wifi_init and sntp_init 
+     * to avoid using too many resources if this is 
+     * called again.
+     */
 }
 
 /** 
@@ -141,7 +153,8 @@ static void displayMenu(MenuState menuState) {
 
     switch (displayFlag) {
         case MENU:
-            rtc.getTime(&timeinfo);
+            time(&now);
+            localtime_r(&now, &timeinfo);
 
             lcd.clear();
             lcd.setCursor(0,0); // col, row
@@ -370,15 +383,35 @@ extern "C" void app_main(void)
         return;
     }
 
+
+    /**
+     * check external RTC time, set system time
+     * wrong time will be evident on LCD. 
+     * can resync in settings
+     */
+    struct timeval now_temp;
+    rtc.getTime(&timeinfo);
+    now = mktime(&timeinfo);
+    now_temp.tv_sec = now; // set seconds (epoch time)
+    now_temp.tv_usec = 0;  // set microseconds
+
+    char time_status[32];
+    lcd.home();
+    if(settimeofday(&now_temp, NULL) == 0) {
+        snprintf(time_status, sizeof(time_status), "Time synced!");
+        lcd.printstr(time_status);
+    } else {
+        snprintf(time_status, sizeof(time_status), "Time not synced!");
+        lcd.printstr(time_status);
+    }
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    lcd.clear();
+
+    printf("UTC time: %s", asctime(gmtime(&now)));
     /* set locale */
     setenv("TZ", "PST8PDT,M3.2.0/2,M11.1.0/2",1);
     tzset();
-
-    /**
-     * check external RTC... if it's up-to-date (current year), use those values
-     * otherwise, try reaching the internet and resyncing system and RTC
-     */
-    rtc.getTime(&timeinfo);
+    printf("Local time: %s", asctime(localtime(&now)));
 
    //Initialize NVS
     ret = nvs_flash_init();
@@ -394,5 +427,7 @@ extern "C" void app_main(void)
 
     xTaskCreate(refresh_disp_task, "refresh_disp_task", 2048, NULL, 10, NULL);
     xTaskCreate(main_task, "main_task", 4096, NULL, 3, NULL);
+
+    vTaskDelete(NULL);
 
 }
